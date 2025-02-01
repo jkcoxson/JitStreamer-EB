@@ -39,7 +39,7 @@ setup_debian_docker_repo() {
       sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 }
 
-# Function to set up Docker's apt repository for Ubuntu (Updated to ensure it uses the correct codename)
+# Function to set up Docker's apt repository for Ubuntu
 setup_ubuntu_docker_repo() {
     echo "Setting up Docker's apt repository for Ubuntu..."
     sudo apt-get update
