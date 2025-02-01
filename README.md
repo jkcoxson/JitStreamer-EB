@@ -125,8 +125,7 @@ cd JitStreamer-EB/
 bash jitstreamer.sh
 ```
 3. follow the instructions provided by the script
-   - generate your jitterbug pairing file using the script or
-   - use a pairing file you created on another pc (preferred)
+   - use a pairing file you created on another pc (preferred), or create one through following this guide (currently not working in script :( *todo) (https://github.com/osy/Jitterbug)
    - then you need to find the IP of your iPhone, you can see this through settings - wifi - i icon - ip address
 
 4. if this docker container stops, you can start it up again in your home directory through 
