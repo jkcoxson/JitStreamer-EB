@@ -119,11 +119,17 @@ IMPORTANT: THIS WILL ONLY WORK ON UBUNTU/DEBIAN!!!
 sudo apt install git-all 
 git clone
 ```
-2. follow the instructions provided by the script
+2. go into the directory and run the script
+```bash
+cd JitStreamer-EB/
+bash jitstreamer.sh
+```
+3. follow the instructions provided by the script
    - generate your jitterbug pairing file using the script or
    - use a pairing file you created on another pc (preferred)
    - then you need to find the IP of your iPhone, you can see this through settings - wifi - i icon - ip address
-3. if this docker container stops, you can start it up again in your home directory through 
+
+4. if this docker container stops, you can start it up again in your home directory through 
 ```bash
 cd /JitStreamer-EB
 sudo docker compose up -d
