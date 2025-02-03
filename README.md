@@ -109,7 +109,7 @@ Alternative method:
 just docker-build
 just docker-run
 ```
-Detailed Step by Step Docker Compose [Guide](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md)
+Detailed Step by Step Docker Compose [Guide](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md)
 
 There is also a script that uses combines the commands from the Step by Step Docker Compose Guide, the steps to use it follow. 
 IMPORTANT: THIS WILL ONLY WORK ON UBUNTU/DEBIAN!!!
@@ -133,6 +133,11 @@ bash jitstreamer.sh
 cd /JitStreamer-EB
 sudo docker compose up -d
 ```
+
+
+## Additional methods of installation 
+[Click this](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs)
+
 
 ## License
 
