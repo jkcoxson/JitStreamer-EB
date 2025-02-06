@@ -1,6 +1,8 @@
 // Jackson Coxson
 
-use axum::{body::Bytes, http::StatusCode};
+use axum_client_ip::SecureClientIp;
+use std::net::{IpAddr, Ipv6Addr};
+use axum::{body::Bytes, http::StatusCode, response::Html};
 use log::info;
 use plist::Dictionary;
 use sha2::Digest;
@@ -45,7 +47,7 @@ pub fn check_wireguard() {
 }
 
 /// Takes the plist in bytes, and returns either the pairing file in return or an error message
-pub async fn register(plist_bytes: Bytes) -> Result<Bytes, (StatusCode, &'static str)> {
+pub async fn register(client_ip: SecureClientIp, plist_bytes: Bytes) -> Result<Bytes, (StatusCode, &'static str)> {
     let plist = match plist::from_bytes::<Dictionary>(plist_bytes.as_ref()) {
         Ok(plist) => plist,
         Err(_) => return Err((StatusCode::BAD_REQUEST, "bad plist")),
@@ -113,98 +115,117 @@ pub async fn register(plist_bytes: Bytes) -> Result<Bytes, (StatusCode, &'static
         }
     };
 
-    let wireguard_config_name =
+    let register_mode = std::env::var("ALLOW_REGISTRATION")
+    .unwrap_or("1".to_string())
+    .parse::<u8>()
+    .unwrap();
+
+    let client_config: Vec<u8>;
+    let ip_final: Ipv6Addr;
+
+    if register_mode == 1 {
+        // register using wireguard
+        let wireguard_config_name =
         std::env::var("WIREGUARD_CONFIG_NAME").unwrap_or("jitstreamer".to_string());
-    let wireguard_conf = format!("/etc/wireguard/{wireguard_config_name}.conf");
-    let wireguard_port = std::env::var("WIREGUARD_PORT")
-        .unwrap_or("51869".to_string())
-        .parse::<u16>()
-        .unwrap_or(51869);
-    let wireguard_server_address =
-        std::env::var("WIREGUARD_SERVER_ADDRESS").unwrap_or("fd00::/128".to_string());
-    let wireguard_endpoint =
-        std::env::var("WIREGUARD_ENDPOINT").unwrap_or("jitstreamer.jkcoxson.com".to_string());
-    let wireguard_server_allowed_ips =
-        std::env::var("WIREGUARD_SERVER_ALLOWED_IPS").unwrap_or("fd00::/64".to_string());
+        let wireguard_conf = format!("/etc/wireguard/{wireguard_config_name}.conf");
+        let wireguard_port = std::env::var("WIREGUARD_PORT")
+            .unwrap_or("51869".to_string())
+            .parse::<u16>()
+            .unwrap_or(51869);
+        let wireguard_server_address =
+            std::env::var("WIREGUARD_SERVER_ADDRESS").unwrap_or("fd00::/128".to_string());
+        let wireguard_endpoint =
+            std::env::var("WIREGUARD_ENDPOINT").unwrap_or("jitstreamer.jkcoxson.com".to_string());
+        let wireguard_server_allowed_ips =
+            std::env::var("WIREGUARD_SERVER_ALLOWED_IPS").unwrap_or("fd00::/64".to_string());
 
-    // Read the Wireguard config file
-    let mut server_peer = match wg_config::WgConf::open(&wireguard_conf) {
-        Ok(conf) => conf,
-        Err(e) => {
-            info!("Failed to open Wireguard config: {:?}", e);
-            if let wg_config::WgConfError::NotFound(_) = e {
-                // Generate a new one
+        // Read the Wireguard config file
+        let mut server_peer = match wg_config::WgConf::open(&wireguard_conf) {
+            Ok(conf) => conf,
+            Err(e) => {
+                info!("Failed to open Wireguard config: {:?}", e);
+                if let wg_config::WgConfError::NotFound(_) = e {
+                    // Generate a new one
 
-                let key = wg_config::WgKey::generate_private_key().expect("failed to generate key");
-                let interface = wg_config::WgInterface::new(
-                    key,
-                    wireguard_server_address.parse().unwrap(),
-                    Some(wireguard_port),
-                    None,
-                    None,
-                    None,
-                )
-                .unwrap();
+                    let key = wg_config::WgKey::generate_private_key().expect("failed to generate key");
+                    let interface = wg_config::WgInterface::new(
+                        key,
+                        wireguard_server_address.parse().unwrap(),
+                        Some(wireguard_port),
+                        None,
+                        None,
+                        None,
+                    )
+                    .unwrap();
 
-                wg_config::WgConf::create(wireguard_conf.as_str(), interface, None)
-                    .expect("failed to create config");
+                    wg_config::WgConf::create(wireguard_conf.as_str(), interface, None)
+                        .expect("failed to create config");
 
-                info!("Created new Wireguard config");
+                    info!("Created new Wireguard config");
 
-                wg_config::WgConf::open(wireguard_conf.as_str()).unwrap()
-            } else {
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "failed to open server Wireguard config",
-                ));
-            }
-        }
-    };
-
-    let mut public_ip = None;
-    if let Some(ip) = ip {
-        match server_peer.peers() {
-            Ok(peers) => {
-                for peer in peers {
-                    let peer_ip = peer.allowed_ips();
-                    if ip.is_empty() {
-                        continue;
-                    }
-                    if peer_ip[0].to_string() == ip {
-                        info!("Found peer with IP {}", ip);
-
-                        public_ip = Some(peer.public_key().to_owned());
-                    }
+                    wg_config::WgConf::open(wireguard_conf.as_str()).unwrap()
+                } else {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "failed to open server Wireguard config",
+                    ));
                 }
             }
-            Err(e) => {
-                info!("Failed to get peers: {:?}", e);
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, "failed to get peers"));
+        };
+        let mut public_ip = None;
+        if let Some(ip) = ip {
+            match server_peer.peers() {
+                Ok(peers) => {
+                    for peer in peers {
+                        let peer_ip = peer.allowed_ips();
+                        if ip.is_empty() {
+                            continue;
+                        }
+                        if peer_ip[0].to_string() == ip {
+                            info!("Found peer with IP {}", ip);
+    
+                            public_ip = Some(peer.public_key().to_owned());
+                        }
+                    }
+                }
+                Err(e) => {
+                    info!("Failed to get peers: {:?}", e);
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, "failed to get peers"));
+                }
             }
         }
-    }
-
-    if let Some(public_ip) = public_ip {
-        server_peer = server_peer.remove_peer_by_pub_key(&public_ip).unwrap();
-    }
-
-    let ip = generate_ipv6_from_udid(udid.as_str());
-
-    // Generate a new peer for the device
-    let client_config = match server_peer.generate_peer(
-        std::net::IpAddr::V6(ip),
-        wireguard_endpoint.parse().unwrap(),
-        vec![wireguard_server_allowed_ips.parse().unwrap()],
-        None,
-        true,
-        Some(20),
-    ) {
-        Ok(config) => config.to_string().as_bytes().to_vec(),
-        Err(e) => {
-            info!("Failed to generate peer: {:?}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "failed to generate peer"));
+    
+        if let Some(public_ip) = public_ip {
+            server_peer = server_peer.remove_peer_by_pub_key(&public_ip).unwrap();
         }
-    };
+    
+        let ip = generate_ipv6_from_udid(udid.as_str());
+        ip_final = ip;
+        // Generate a new peer for the device
+        client_config = match server_peer.generate_peer(
+            std::net::IpAddr::V6(ip),
+            wireguard_endpoint.parse().unwrap(),
+            vec![wireguard_server_allowed_ips.parse().unwrap()],
+            None,
+            true,
+            Some(20),
+        ) {
+            Ok(config) => config.to_string().as_bytes().to_vec(),
+            Err(e) => {
+                info!("Failed to generate peer: {:?}", e);
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, "failed to generate peer"));
+            }
+        };
+    } else if register_mode == 2 {
+        // register directly using request IP
+        ip_final = match client_ip.0 {
+            IpAddr::V4(v4) => v4.to_ipv6_mapped(),
+            IpAddr::V6(v6) => v6,
+        };
+        client_config = ip_final.to_string().as_bytes().to_vec();
+    } else {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Unknown registratuon mode"));
+    }
 
     // Save the plist to the storage
     tokio::fs::write(
@@ -237,16 +258,23 @@ pub async fn register(plist_bytes: Bytes) -> Result<Bytes, (StatusCode, &'static
             }
         };
         statement
-            .bind(&[(1, udid.as_str()), (2, ip.to_string().as_str())][..])
+            .bind(&[(1, udid.as_str()), (2, ip_final.to_string().as_str())][..])
             .unwrap();
         if crate::db::statement_next(&mut statement).is_none() {
             log::error!("Failed to enact the statement");
         }
     });
 
-    refresh_wireguard();
+    if register_mode == 1 {
+        refresh_wireguard();
+    }
+
 
     Ok(client_config.into())
+}
+
+pub async fn upload() -> Result<Html<String>, (StatusCode, &'static str)> {
+    return Ok(Html(std::fs::read_to_string("src/upload.html").unwrap()));
 }
 
 fn generate_ipv6_from_udid(udid: &str) -> std::net::Ipv6Addr {

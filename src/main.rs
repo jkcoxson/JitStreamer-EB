@@ -55,8 +55,7 @@ async fn main() {
     let allow_registration = std::env::var("ALLOW_REGISTRATION")
         .unwrap_or("1".to_string())
         .parse::<u8>()
-        .unwrap()
-        == 1;
+        .unwrap();
     let port = std::env::var("JITSTREAMER_PORT")
         .unwrap_or("9172".to_string())
         .parse::<u16>()
@@ -88,8 +87,11 @@ async fn main() {
         .route("/status", get(status))
         .with_state(heartbeat_sender);
 
-    let app = if allow_registration {
+    let app = if allow_registration == 1 {
         app.route("/register", post(register::register))
+    } else if allow_registration == 2 {
+        app.route("/register", post(register::register))
+        .route("/upload", get(register::upload))
     } else {
         app
     };
