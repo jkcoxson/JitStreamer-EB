@@ -86,6 +86,8 @@ With Docker set up, you need to create some more files, place them in specific l
 
 ### Clone the Repo
 
+**Note: I (unlearned6688) have begun pushing Docker image builds to my hub.docker.com account sardine0006. If you'd like to skip building the image yourself, you can pull the image manually ```docker image pull sardine0006/jitstreamer-eb:latest``` or just edit your docker-compose.yml and make the "image:" portion say ```sardine0006/jitstreamer-eb:latest``` If you do grab tbe pre-built image, you can also skip the build image portion down in the "Exeuction" section. Otherwise, if you prefer to build yourself, continue on!**
+
 Again, this is all from a Debian perspective. Adjust commands as required. Google will help you. Many of these are now the same using tools like Powershell on Windows. MacOS is Unix based and thus already basically the same for most stuff.
 
 I will be cloning the repo into my "home" directory. It will look like ```/home/USER/JitStreamer-EB``` where USER is... you know. Your username that you login with. You can also shortcut to it with ```~/JitStreamer-EB```. Just know the directory where you will be building.
