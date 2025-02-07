@@ -30,7 +30,8 @@ const BUILD_MANIFEST: &[u8] = include_bytes!("../DDI/BuildManifest.plist");
 const DDI_IMAGE: &[u8] = include_bytes!("../DDI/Image.dmg");
 const DDI_TRUSTCACHE: &[u8] = include_bytes!("../DDI/Image.dmg.trustcache");
 
-pub type MountCache = Arc<Mutex<HashMap<String, watch::Receiver<Result<(usize, usize), String>>>>>;
+pub type MountCache =
+    Arc<Mutex<HashMap<String, watch::Receiver<Result<(usize, usize, bool), String>>>>>;
 
 #[derive(Serialize)]
 pub struct CheckMountResponse {
@@ -66,8 +67,8 @@ pub async fn check_mount(
     if let Some(i) = lock.get(&udid) {
         let i = i.borrow().clone();
         match i {
-            Ok((a, b)) => {
-                if a == b {
+            Ok((_, _, complete)) => {
+                if complete {
                     lock.remove(&udid);
                     return Json(CheckMountResponse {
                         ok: true,
@@ -180,7 +181,7 @@ pub async fn check_mount(
             mounting: false,
         })
     } else {
-        let (sw, rw) = watch::channel(Ok((0, 100)));
+        let (sw, rw) = watch::channel(Ok((0, 100, false)));
         mount_thread(
             provider,
             sw,
@@ -199,7 +200,7 @@ pub async fn check_mount(
 
 fn mount_thread(
     provider: TcpProvider,
-    sender: watch::Sender<Result<(usize, usize), String>>,
+    sender: watch::Sender<Result<(usize, usize, bool), String>>,
     hb: NewHeartbeatSender,
     udid: String,
 ) {
@@ -208,7 +209,7 @@ fn mount_thread(
         // Start work in a new fuction so we can use ?
         async fn work(
             provider: TcpProvider,
-            sender: watch::Sender<Result<(usize, usize), String>>,
+            sender: watch::Sender<Result<(usize, usize, bool), String>>,
             hb: NewHeartbeatSender,
             udid: String,
         ) -> Result<(), IdeviceError> {
@@ -239,7 +240,7 @@ fn mount_thread(
                     None,
                     unique_chip_id,
                     |(progress, state)| async move {
-                        state.clone().send(Ok(progress)).ok();
+                        state.clone().send(Ok((progress.0, progress.1, false))).ok();
                     },
                     sender,
                 )
@@ -252,6 +253,8 @@ fn mount_thread(
         if let Err(e) = work(provider, sender.clone(), hb, udid.clone()).await {
             warn!("Failed to mount for {udid}: {e:?}");
             sender.send(Err(e.to_string())).ok();
+        } else {
+            sender.send(Ok((1, 1, true))).ok();
         }
     });
 }
@@ -309,12 +312,12 @@ async fn handle_socket(mut socket: WebSocket, ip: String, state: JitStreamerStat
     loop {
         let msg = receiver.borrow().clone();
         if match msg {
-            Ok((a, b)) => socket.send(
+            Ok((a, b, complete)) => socket.send(
                 MountWebSocketMessage {
                     ok: true,
                     error: None,
                     percentage: a as f32 / b as f32,
-                    done: a == b,
+                    done: complete,
                 }
                 .to_ws_message(),
             ),
