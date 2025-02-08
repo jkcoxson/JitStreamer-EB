@@ -29,7 +29,7 @@ RUN git clone https://github.com/jkcoxson/netmuxd.git && \
 
 RUN git clone https://github.com/jkcoxson/tunneld-rs.git && \
     cd tunneld-rs && \
-    git reset --hard 84239b40474914d588b3843b37b0ecfa8f0ea7e2 && \
+    git reset --hard 7371cffbf93f4984e9c54186a29e1c6dd6775eb1 && \
     cargo build --release && \
     cd ..
 

@@ -55,13 +55,17 @@ pub async fn heartbeat_thread(
     let (sender, mut receiver) = tokio::sync::oneshot::channel::<()>();
 
     tokio::task::spawn(async move {
-        let mut interval = 15;
+        let interval = 30;
         loop {
-            interval = match heartbeat_client.get_marco(interval).await {
+            let _ = match heartbeat_client.get_marco(interval).await {
                 Ok(interval) => interval,
-                Err(_) => break,
+                Err(e) => {
+                    debug!("Failed to get marco for {udid}: {e:?}");
+                    break;
+                }
             };
             if heartbeat_client.send_polo().await.is_err() {
+                debug!("Failed to send polo for {udid}");
                 break;
             }
             match receiver.try_recv() {

@@ -2,3 +2,5 @@
 *.db
 .env
 __pycache__
+prod.sh
+/DDI

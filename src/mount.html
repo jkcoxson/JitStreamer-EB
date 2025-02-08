@@ -1,0 +1,74 @@
+<!-- Jackson Coxson -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Mounting</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+            text-align: center;
+            padding: 0 20px;
+        }
+        h1 {
+            padding: 0 20px;
+        }
+        #output {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 80%;
+            text-align: center;
+            font-size: 1.5em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Your device is mounting. Please wait.</h1>
+    <div id="output">Waiting for data...</div>
+
+    <script>
+        const output = document.getElementById('output');
+        const socket = new WebSocket('ws://' + window.location.host + '/mount_ws');
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.done) {
+                    output.textContent = "Mount complete. You may press done.";
+                    return;
+                } else if (!data.ok) {
+                    output.textContent = data.error;
+                } else {
+                    output.textContent = `Progress: ${(data.percentage * 100).toFixed(2)}%`;
+                }
+            } catch (error) {
+                output.textContent = 'Error parsing response';
+            }
+        };
+
+        socket.onopen = () => {
+            console.log('WebSocket connected');
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket closed');
+        };
+    </script>
+</body>
+</html>
+

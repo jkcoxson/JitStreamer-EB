@@ -89,55 +89,65 @@ There's a nice dockerfile that contains a Wireguard server and JitStreamer serve
 all packaged and ready to go. It contains everything you need to run the server.
 
 1. create a database
+
 ```bash
 mkdir app
 sqlite3 ./jitstreamer.db < ./src/sql/up.sql
 ```
 
 2. build docker
+
 ```bash
 sudo docker build -t jitstreamer-eb .
 ```
 
 3. run docker compose
+
 ```bash
 sudo docker compose up -d
 ```
 
 Alternative method:
+
 ```bash
 just docker-build
 just docker-run
 ```
+
 Detailed Step by Step Docker Compose [Guide](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md)
 
 There is also a script that uses combines the commands from the Step by Step Docker Compose Guide, the steps to use it follow. 
 IMPORTANT: THIS WILL ONLY WORK ON UBUNTU/DEBIAN!!!
 
 1. clone the repo onto your home directory
+
 ```bash
 sudo apt install git-all 
 git clone
 ```
+
 2. go into the directory and run the script
+
 ```bash
 cd JitStreamer-EB/
 bash jitstreamer.sh
 ```
+
 3. follow the instructions provided by the script
-   - use a pairing file you created on another pc (preferred), or create one through following this guide (currently not working in script :( *todo) (https://github.com/osy/Jitterbug)
+   - use a pairing file you created on another pc (preferred), 
+   or create one through following this guide (currently not working in script :( *todo) (https://github.com/osy/Jitterbug)
    - then you need to find the IP of your iPhone, you can see this through settings - wifi - i icon - ip address
 
 4. if this docker container stops, you can start it up again in your home directory through 
+
 ```bash
 cd /JitStreamer-EB
 sudo docker compose up -d
 ```
 
+## Additional methods of installation
 
-## Additional methods of installation 
 [Click this](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs)
-
 
 ## License
 

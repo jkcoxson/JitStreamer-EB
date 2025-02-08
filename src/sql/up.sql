@@ -4,13 +4,6 @@ create table devices (
   last_used datetime not null
 );
 
-create table mount_queue (
-  udid varchar(40) not null,
-  ip varchar(32) not null,
-  status int not null, -- 0: pending, 2: error
-  error varchar(255),
-  ordinal integer primary key
-);
 
 create table downloads (
   code varchar(40) primary key,

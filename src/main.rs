@@ -1,7 +1,7 @@
 // Jackson Coxson
 // JitStreamer for the year of our Lord, 2025
 
-const VERSION: [u8; 3] = [0, 1, 1];
+const VERSION: [u8; 3] = [0, 2, 0];
 
 use std::{
     collections::HashMap,
@@ -12,18 +12,18 @@ use std::{
 use axum::{
     extract::{Json, Path, State},
     http::{header::CONTENT_TYPE, Method},
-    routing::{get, post},
+    response::Html,
+    routing::{any, get, post},
 };
 use axum_client_ip::SecureClientIp;
+use common::get_pairing_file;
 use heartbeat::NewHeartbeatSender;
-use idevice::{
-    installation_proxy::InstallationProxyClient, mounter::ImageMounter, pairing_file::PairingFile,
-    provider::TcpProvider, IdeviceService,
-};
+use idevice::{installation_proxy::InstallationProxyClient, provider::TcpProvider, IdeviceService};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 
+mod common;
 mod db;
 mod debug_server;
 mod heartbeat;
@@ -31,22 +31,17 @@ mod mount;
 mod register;
 mod runner;
 
+#[derive(Clone)]
+struct JitStreamerState {
+    pub new_heartbeat_sender: NewHeartbeatSender,
+    pub mount_cache: mount::MountCache,
+}
+
 #[tokio::main]
 async fn main() {
     println!("Starting JitStreamer-EB, enabling logger");
     dotenvy::dotenv().ok();
-
-    env_logger::init();
-    info!("Logger initialized");
-
-    // Run the environment checks
-    register::check_wireguard();
-    if !std::fs::exists("jitstreamer.db").unwrap() {
-        info!("Creating database");
-        let db = sqlite::open("jitstreamer.db").unwrap();
-        db.execute(include_str!("sql/up.sql")).unwrap();
-    }
-
+    //
     // Read the environment variable constants
     let runner_count = std::env::var("RUNNER_COUNT")
         .unwrap_or("10".to_string())
@@ -61,15 +56,29 @@ async fn main() {
         .parse::<u16>()
         .unwrap();
 
+    env_logger::init();
+    info!("Logger initialized");
+
+    // Run the environment checks
+    if allow_registration {
+        register::check_wireguard();
+    }
+    if !std::fs::exists("jitstreamer.db").unwrap() {
+        info!("Creating database");
+        let db = sqlite::open("jitstreamer.db").unwrap();
+        db.execute(include_str!("sql/up.sql")).unwrap();
+    }
+
     // Empty the queues
-    mount::empty().await;
     debug_server::empty().await;
 
     // Create a heartbeat manager
-    let heartbeat_sender = heartbeat::heartbeat();
+    let state = JitStreamerState {
+        new_heartbeat_sender: heartbeat::heartbeat(),
+        mount_cache: mount::MountCache::default(),
+    };
 
     // Run the Python shims
-    runner::run("src/runners/mount.py", runner_count);
     runner::run("src/runners/launch.py", runner_count);
 
     let cors = CorsLayer::new()
@@ -82,10 +91,16 @@ async fn main() {
         .layer(cors.clone())
         .route("/hello", get(|| async { "Hello, world!" }))
         .route("/version", post(version))
+        .route("/mount", get(mount::check_mount))
+        .route("/mount_ws", any(mount::handler))
+        .route(
+            "/mount_status",
+            get(|| async { Html(include_str!("mount.html")) }),
+        )
         .route("/get_apps", get(get_apps))
         .route("/launch_app/{bundle_id}", get(launch_app))
         .route("/status", get(status))
-        .with_state(heartbeat_sender);
+        .with_state(state);
 
     let app = if allow_registration == 1 {
         app.route("/register", post(register::register))
@@ -155,68 +170,27 @@ struct GetAppsReturn {
 #[axum::debug_handler]
 async fn get_apps(
     ip: SecureClientIp,
-    State(state): State<NewHeartbeatSender>,
+    State(state): State<JitStreamerState>,
 ) -> Json<GetAppsReturn> {
     let ip = ip.0;
 
     info!("Got request to get apps from {:?}", ip);
 
-    let udid = match tokio::task::spawn_blocking(move || {
-        let db = match sqlite::open("jitstreamer.db") {
-            Ok(db) => db,
-            Err(e) => {
-                info!("Failed to open database: {:?}", e);
-                return Err(Json(GetAppsReturn {
-                    ok: false,
-                    apps: Vec::new(),
-                    bundle_ids: None,
-                    error: Some(format!("Failed to open database: {:?}", e)),
-                }));
-            }
-        };
-
-        // Get the device from the database
-        let query = "SELECT udid FROM devices WHERE ip = ?";
-        let mut statement = match crate::db::db_prepare(&db, query) {
-            Some(s) => s,
-            None => {
-                log::error!("Failed to prepare query!");
-                return Err(Json(GetAppsReturn {
-                    ok: false,
-                    apps: Vec::new(),
-                    bundle_ids: None,
-                    error: Some("Failed to open database".to_string()),
-                }));
-            }
-        };
-        statement.bind((1, ip.to_string().as_str())).unwrap();
-        let udid = if let Some(sqlite::State::Row) = crate::db::statement_next(&mut statement) {
-            let udid = statement.read::<String, _>("udid").unwrap();
-            info!("Found device with udid {}", udid);
-            udid
-        } else {
-            info!("No device found for IP {:?}", ip);
-            return Err(Json(GetAppsReturn {
+    let udid = match common::get_udid_from_ip(ip.to_string()).await {
+        Ok(u) => u,
+        Err(e) => {
+            return Json(GetAppsReturn {
                 ok: false,
                 apps: Vec::new(),
                 bundle_ids: None,
-                error: Some(format!("No device found for IP {:?}", ip)),
-            }));
-        };
-        Ok(udid)
-    })
-    .await
-    .unwrap()
-    {
-        Ok(udid) => udid,
-        Err(e) => {
-            return e;
+                error: Some(e),
+            })
         }
     };
 
     // Get the pairing file
     debug!("Getting pairing file for {udid}");
-    let pairing_file = match get_pairing_file(udid.clone()).await {
+    let pairing_file = match get_pairing_file(&udid).await {
         Ok(pairing_file) => pairing_file,
         Err(e) => {
             info!("Failed to get pairing file: {:?}", e);
@@ -233,6 +207,7 @@ async fn get_apps(
     match heartbeat::heartbeat_thread(udid.clone(), ip, &pairing_file).await {
         Ok(s) => {
             state
+                .new_heartbeat_sender
                 .send(heartbeat::SendRequest::Store((udid.clone(), s)))
                 .await
                 .unwrap();
@@ -331,6 +306,7 @@ async fn get_apps(
     }
 
     state
+        .new_heartbeat_sender
         .send(heartbeat::SendRequest::Kill(udid.clone()))
         .await
         .unwrap();
@@ -347,9 +323,10 @@ async fn get_apps(
 struct LaunchAppReturn {
     ok: bool,
     launching: bool,
-    mounting: bool,
     position: Option<usize>,
     error: Option<String>,
+    mounting: bool, // NOTICE: this field does literally nothing and will be removed in future
+                    // versions
 }
 ///  - Get the IP from the request and UDID from the database
 /// - Make sure netmuxd still has the device
@@ -359,68 +336,21 @@ struct LaunchAppReturn {
 ///  - Connect to tunneld and get the interface and port for the developer service
 ///  - Send the commands to launch the app and detach
 ///  - Set last_used to now in the database
-async fn launch_app(
-    ip: SecureClientIp,
-    Path(bundle_id): Path<String>,
-    State(state): State<heartbeat::NewHeartbeatSender>,
-) -> Json<LaunchAppReturn> {
+async fn launch_app(ip: SecureClientIp, Path(bundle_id): Path<String>) -> Json<LaunchAppReturn> {
     let ip = ip.0;
 
     info!("Got request to launch {bundle_id} from {:?}", ip);
 
-    let udid = match tokio::task::spawn_blocking(move || {
-        let db = match sqlite::open("jitstreamer.db") {
-            Ok(db) => db,
-            Err(e) => {
-                info!("Failed to open database: {:?}", e);
-                return Err(Json(LaunchAppReturn {
-                    ok: false,
-                    launching: false,
-                    mounting: false,
-                    position: None,
-                    error: Some(format!("Failed to open database: {:?}", e)),
-                }));
-            }
-        };
-
-        // Get the device from the database
-        let query = "SELECT udid FROM devices WHERE ip = ?";
-        let mut statement = match crate::db::db_prepare(&db, query) {
-            Some(s) => s,
-            None => {
-                log::error!("Failed to prepare query!");
-                return Err(Json(LaunchAppReturn {
-                    ok: false,
-                    launching: false,
-                    mounting: false,
-                    position: None,
-                    error: Some("Failed to open database".to_string()),
-                }));
-            }
-        };
-        statement.bind((1, ip.to_string().as_str())).unwrap();
-        let udid = if let Some(sqlite::State::Row) = crate::db::statement_next(&mut statement) {
-            let udid = statement.read::<String, _>("udid").unwrap();
-            info!("Found device with udid {}", udid);
-            udid
-        } else {
-            info!("No device found for IP {:?}", ip);
-            return Err(Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some("No device found in database".to_string()),
-            }));
-        };
-        Ok(udid)
-    })
-    .await
-    .unwrap()
-    {
-        Ok(udid) => udid,
+    let udid = match common::get_udid_from_ip(ip.to_string()).await {
+        Ok(u) => u,
         Err(e) => {
-            return e;
+            return Json(LaunchAppReturn {
+                ok: false,
+                error: Some(e),
+                launching: false,
+                position: None,
+                mounting: false,
+            })
         }
     };
 
@@ -431,9 +361,9 @@ async fn launch_app(
             return Json(LaunchAppReturn {
                 ok: true,
                 launching: true,
-                mounting: false,
                 position: Some(p),
                 error: None,
+                mounting: false,
             });
         }
         debug_server::LaunchQueueInfo::NotInQueue => {}
@@ -441,179 +371,37 @@ async fn launch_app(
             return Json(LaunchAppReturn {
                 ok: false,
                 launching: false,
-                mounting: false,
                 position: None,
                 error: Some(e),
+                mounting: false,
             });
         }
         debug_server::LaunchQueueInfo::ServerError => {
             return Json(LaunchAppReturn {
                 ok: false,
                 launching: false,
-                mounting: false,
                 position: None,
                 error: Some("Failed to get launch status".to_string()),
+                mounting: false,
             });
         }
     }
-
-    // Check the mounting status
-    match mount::get_queue_info(&udid).await {
-        mount::MountQueueInfo::Position(p) => {
-            return Json(LaunchAppReturn {
-                ok: true,
-                launching: false,
-                mounting: true,
-                position: Some(p),
-                error: None,
-            });
-        }
-        mount::MountQueueInfo::NotInQueue => {}
-        mount::MountQueueInfo::Error(e) => {
-            return Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some(e),
-            });
-        }
-        mount::MountQueueInfo::ServerError => {
-            return Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some("Failed to get mounting status".to_string()),
-            });
-        }
-        mount::MountQueueInfo::InProgress => {
-            return Json(LaunchAppReturn {
-                ok: true,
-                launching: false,
-                mounting: true,
-                position: None,
-                error: None,
-            });
-        }
-    }
-
-    // Get the pairing file
-    let pairing_file = match get_pairing_file(udid.clone()).await {
-        Ok(pairing_file) => pairing_file,
-        Err(e) => {
-            info!("Failed to get pairing file: {:?}", e);
-            return Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some(format!("Failed to get pairing file: {:?}", e)),
-            });
-        }
-    };
-
-    // Heartbeat the device
-    match heartbeat::heartbeat_thread(udid.clone(), ip, &pairing_file).await {
-        Ok(s) => {
-            state
-                .send(heartbeat::SendRequest::Store((udid.clone(), s)))
-                .await
-                .unwrap();
-        }
-        Err(e) => {
-            info!("Failed to heartbeat device: {:?}", e);
-            return Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some(format!("Failed to heartbeat device: {:?}", e)),
-            });
-        }
-    }
-
-    // Get the list of mounted images
-    let provider = TcpProvider {
-        addr: ip,
-        pairing_file,
-        label: "JitStreamer-EB".to_string(),
-    };
-
-    let mut mounter_client = match ImageMounter::connect(&provider).await {
-        Ok(m) => m,
-        Err(e) => {
-            return Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some(format!("Failed to start image mounter: {e:?}")),
-            })
-        }
-    };
-
-    let images = match mounter_client.copy_devices().await {
-        Ok(images) => images,
-        Err(e) => {
-            info!("Failed to get images: {:?}", e);
-            return Json(LaunchAppReturn {
-                ok: false,
-                launching: false,
-                mounting: false,
-                position: None,
-                error: Some(format!("Failed to get images: {:?}", e)),
-            });
-        }
-    };
-
-    let mut mounted = false;
-    for image in images {
-        let mut buf = Vec::new();
-        let mut writer = std::io::Cursor::new(&mut buf);
-        plist::to_writer_xml(&mut writer, &image).unwrap();
-
-        let image = String::from_utf8_lossy(&buf);
-        if image.contains("Developer") {
-            mounted = true;
-            break;
-        }
-    }
-
-    if !mounted {
-        // Add the device to the queue for mounting
-        mount::add_to_queue(&udid, ip.to_string()).await;
-
-        // Return a message letting the user know the device is mounting
-        return Json(LaunchAppReturn {
-            ok: true,
-            launching: false,
-            mounting: true,
-                position: None,
-            error: Some("Your device has been added to the queue for image mounting. Please try again in a minute.".to_string()),
-        });
-    }
-
-    state
-        .send(heartbeat::SendRequest::Kill(udid.clone()))
-        .await
-        .unwrap();
 
     // Add the launch to the queue
     match debug_server::add_to_queue(&udid, ip.to_string(), &bundle_id).await {
         Some(position) => Json(LaunchAppReturn {
             ok: true,
             launching: true,
-            mounting: false,
             position: Some(position as usize),
             error: None,
+            mounting: false,
         }),
         None => Json(LaunchAppReturn {
             ok: false,
             launching: false,
-            mounting: false,
             position: None,
             error: Some("Failed to add to queue".to_string()),
+            mounting: false,
         }),
     }
 }
@@ -623,8 +411,8 @@ struct StatusReturn {
     done: bool,
     ok: bool,
     position: usize,
-    in_progress: bool,
     error: Option<String>,
+    in_progress: bool, // NOTICE: this field is deprecated and will be removed in future versions
 }
 
 /// Gets the current status of the device
@@ -634,59 +422,16 @@ async fn status(ip: SecureClientIp) -> Json<StatusReturn> {
     let start_time = std::time::Instant::now();
     let ip = ip.0;
 
-    let udid = match tokio::task::spawn_blocking(move || {
-        let db = match sqlite::open("jitstreamer.db") {
-            Ok(db) => db,
-            Err(e) => {
-                info!("Failed to open database: {:?}", e);
-                return Err(Json(StatusReturn {
-                    done: true,
-                    ok: false,
-                    position: 0,
-                    in_progress: false,
-                    error: Some(format!("Failed to open database: {:?}", e)),
-                }));
-            }
-        };
-
-        // Get the device from the database
-        let query = "SELECT udid FROM devices WHERE ip = ?";
-        let mut statement = match crate::db::db_prepare(&db, query) {
-            Some(s) => s,
-            None => {
-                log::error!("Failed to prepare query!");
-                return Err(Json(StatusReturn {
-                    ok: false,
-                    done: false,
-                    in_progress: false,
-                    position: 0,
-                    error: Some("Failed to open database".to_string()),
-                }));
-            }
-        };
-        statement.bind((1, ip.to_string().as_str())).unwrap();
-        let udid = if let Some(sqlite::State::Row) = crate::db::statement_next(&mut statement) {
-            let udid = statement.read::<String, _>("udid").unwrap();
-            info!("Found device with udid {}", udid);
-            udid
-        } else {
-            info!("No device found for IP {:?}", ip);
-            return Err(Json(StatusReturn {
-                done: true,
+    let udid = match common::get_udid_from_ip(ip.to_string()).await {
+        Ok(u) => u,
+        Err(e) => {
+            return Json(StatusReturn {
                 ok: false,
+                done: true,
+                error: Some(e),
                 position: 0,
                 in_progress: false,
-                error: Some("No device found in database".to_string()),
-            }));
-        };
-        Ok(udid)
-    })
-    .await
-    .unwrap()
-    {
-        Ok(udid) => udid,
-        Err(e) => {
-            return e;
+            })
         }
     };
 
@@ -701,8 +446,8 @@ async fn status(ip: SecureClientIp) -> Json<StatusReturn> {
                     ok: true,
                     done: false,
                     position: p,
-                    in_progress: false,
                     error: None,
+                    in_progress: false,
                 }));
             }
             debug_server::LaunchQueueInfo::NotInQueue => {}
@@ -711,8 +456,8 @@ async fn status(ip: SecureClientIp) -> Json<StatusReturn> {
                     ok: false,
                     done: true,
                     position: 0,
-                    in_progress: false,
                     error: Some(e),
+                    in_progress: false,
                 }));
             }
             debug_server::LaunchQueueInfo::ServerError => {
@@ -720,49 +465,8 @@ async fn status(ip: SecureClientIp) -> Json<StatusReturn> {
                     ok: false,
                     done: true,
                     position: 0,
-                    in_progress: false,
                     error: Some("server error".to_string()),
-                }));
-            }
-        }
-
-        // Check the mounting status
-        match mount::get_queue_info(&udid).await {
-            mount::MountQueueInfo::Position(p) => {
-                to_return = Some(Json(StatusReturn {
-                    ok: true,
-                    done: false,
-                    position: p,
                     in_progress: false,
-                    error: None,
-                }));
-            }
-            mount::MountQueueInfo::NotInQueue => {}
-            mount::MountQueueInfo::Error(e) => {
-                to_return = Some(Json(StatusReturn {
-                    ok: false,
-                    done: true,
-                    position: 0,
-                    in_progress: false,
-                    error: Some(e),
-                }));
-            }
-            mount::MountQueueInfo::ServerError => {
-                to_return = Some(Json(StatusReturn {
-                    ok: false,
-                    done: true,
-                    position: 0,
-                    in_progress: false,
-                    error: Some("server error".to_string()),
-                }));
-            }
-            mount::MountQueueInfo::InProgress => {
-                to_return = Some(Json(StatusReturn {
-                    ok: true,
-                    done: false,
-                    position: 0,
-                    in_progress: true,
-                    error: None,
                 }));
             }
         }
@@ -781,20 +485,11 @@ async fn status(ip: SecureClientIp) -> Json<StatusReturn> {
                         ok: true,
                         done: true,
                         position: 0,
-                        in_progress: false,
                         error: None,
+                        in_progress: false,
                     });
                 }
             }
         }
     }
-}
-
-/// Gets the pairing file
-async fn get_pairing_file(udid: String) -> Result<PairingFile, idevice::IdeviceError> {
-    // All pairing files are stored at /var/lib/lockdown/<udid>.plist
-    let path = format!("/var/lib/lockdown/{}.plist", udid);
-    let pairing_file = tokio::fs::read(path).await?;
-
-    PairingFile::from_bytes(&pairing_file)
 }
