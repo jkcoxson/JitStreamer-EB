@@ -60,7 +60,7 @@ async fn main() {
     info!("Logger initialized");
 
     // Run the environment checks
-    if allow_registration {
+    if allow_registration == 1 {
         register::check_wireguard();
     }
     if !std::fs::exists("jitstreamer.db").unwrap() {

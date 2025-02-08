@@ -224,7 +224,7 @@ pub async fn register(client_ip: SecureClientIp, plist_bytes: Bytes) -> Result<B
         };
         client_config = ip_final.to_string().as_bytes().to_vec();
     } else {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Unknown registratuon mode"));
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Unknown registration mode"));
     }
 
     // Save the plist to the storage
@@ -273,8 +273,10 @@ pub async fn register(client_ip: SecureClientIp, plist_bytes: Bytes) -> Result<B
     Ok(client_config.into())
 }
 
-pub async fn upload() -> Result<Html<String>, (StatusCode, &'static str)> {
-    return Ok(Html(std::fs::read_to_string("src/upload.html").unwrap()));
+const UPLOAD_HTML: &str = include_str!("../src/upload.html");
+
+pub async fn upload() -> Result<Html<&'static str>, (StatusCode, &'static str)> {
+    Ok(Html(UPLOAD_HTML))
 }
 
 fn generate_ipv6_from_udid(udid: &str) -> std::net::Ipv6Addr {
