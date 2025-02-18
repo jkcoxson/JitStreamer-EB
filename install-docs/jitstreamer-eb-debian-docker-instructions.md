@@ -182,7 +182,7 @@ Optional: "Is everything ok so far?" check. Type:
 
 You should see:
 
-```devices       downloads     launch_queue  mount_queue```
+```devices       downloads     launch_queue```
 
 This means your tables inside the database were created as instructed above. Good, good.
 
