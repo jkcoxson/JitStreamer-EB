@@ -304,6 +304,37 @@ I bring up ufw because I was unable to connect my iDevice to my Debian host (and
 
 Then it worked perfectly. It may also work if you allow the port 9172, but I haven't tried. The above worked. Good enough for me.
 
+**Update on the above point: ```sudo ufw allow 9172``` DOES WORk**
+
+### Network_bridge mode with Docker compose?
+
+**YES** It does work. Or, it should, anyway.
+Here's my working docker-compose.yml to use network bridge mode. At some point this will probably get added to the repo separately.
+
+```
+services:
+    jitstreamer-eb:
+        container_name: jitstreamer-eb
+        #network_mode: host
+        volumes:
+            - ./lockdown:/var/lib/lockdown
+           # - ./wireguard:/etc/wireguard
+            - ./jitstreamer.db:/app/jitstreamer.db
+        environment:
+            - RUST_LOG=info
+            - RUNNER_COUNT=1
+            - ALLOW_REGISTRATION=2
+        ports:
+            - 9172:9172
+        cap_add:
+            - NET_ADMIN
+        devices:
+            - /dev/net/tun:/dev/net/tun
+        image: jkcoxson/jitstreamer-eb:latest
+        restart: unless-stopped
+```
+Note that this docker-compose file will: run in network bridge mode, not create a wireguard directory or .conf file, and exposes on port 9172.
+
 ### What does this work with?
 
 I saw a lot of discussion day one about what this (and all known JIT methods, to my knowledge) works with.
