@@ -59,6 +59,8 @@ Note 3: (Holy notes) You will need your UDID for each device later as well. Thes
 
 ### Copy Pairing Files (.plist) to JitStreamer-EB
 
+**NOTE: I don't recommend doing any of this below in unRAID. unRAID isn't really meant to be used for these types of operations. You probably can (I haven't tested), but just to be clear: I don't think you should. You can make the .plist files in a VM, on a regular Windows boot, etc. and transfer them to your unRAID install.
+
 You can do this via GUI (with a file manager) or in the terminal. Whatever brings you happiness and joy. GUI is probably easiest for most people. In which case just copy the file(s), go to ```~/JitStreamer-EB``` and paste it in the "lockdown" directory. Otherwise, here's terminal instructions:
 
 1. In terminal, go to whatever directory you ran jitterbug in when you created your pairing file. The default is the Downloads directory  
@@ -81,17 +83,20 @@ Easy!
 
 This part might be a bit weird. Prepare yourself.
 
-1. You have to create the jitstreamer.db file (sqlite database) using build instructions included in the repo.
+1. You have to create the jitstreamer.db file (sqlite database) using build instructions included in the repo. I modified this a bit from the Debian instructions I had written previously since you aren't cloning the repo on unRAID. There's likely a faster/better way to do this. This will work though.
 
-```
-mkdir app
-sqlite3 ./jitstreamer.db < ./src/sql/up.sql
-```
+Make the database directory
 
-2. Now you have a fancy little database. But you need to add your device info into it.
+```mkdir /mnt/user/appdata/jitstreamer-eb/app```
+
+Make the database file
+
+```touch /mnt/user/appdata/jitstreamer-eb/app/jitstreamer.db```
+
+3. Now you have a fancy little database. But you need to add your device info into it.
 Note: There are likely many ways to achieve the desired result here. This is just how I did it. It may be more steps than required, but it lets you see how the database works internally which I prefer for myself.
 Type into the terminal
-```sqlite3```
+```sqlite3 /mnt/user/appdata/jitstreamer-eb/app/jitstreamer.db```
 Something like this will appear (maybe different versions):
 
 ```
@@ -99,6 +104,7 @@ SQLite version 3.40.1 2022-12-28 14:03:47
 Enter ".help" for usage hints.
 Connected to a transient in-memory database.
 Use ".open FILENAME" to reopen on a persistent database.
+
 ```
 
 Note that it says "transient in-memory database". We don't want that!
@@ -108,13 +114,40 @@ Type into the terminal after the "sqlite>" (which you should see):
 
 ```.open jitstreamer.db```
 
+**NOTE: This part is different for unRAID. Make sure to copy the below code directly into the new database file!**
+
+[This code](https://github.com/jkcoxson/JitStreamer-EB/blob/master/src/sql/up.sql) needs to be pasted into the now-open for editing database. Check the link for the most up-to-date code to ccpy/paste.
+
+```
+create table devices (
+  ip varchar(15) primary key,
+  udid varchar(40) not null,
+  last_used datetime not null
+);
+
+
+create table downloads (
+  code varchar(40) primary key,
+  contents varchar(255) not null
+);
+
+create table launch_queue (
+  udid varchar(40) not null,
+  ip varchar(32) not null,
+  bundle_id varchar(255) not null,
+  status int not null, -- 0: pending, 2: error
+  error varchar(255),
+  ordinal integer primary key
+);
+```
+
 Optional: "Is everything ok so far?" check. Type:
 
 ```.tables```
 
 You should see:
 
-```devices       downloads     launch_queue  mount_queue```
+```devices       downloads     launch_queue```
 
 This means your tables inside the database were created as instructed above. Good, good.
 
