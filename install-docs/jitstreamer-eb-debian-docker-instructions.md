@@ -226,6 +226,8 @@ We got everything created and placed where it needs to be. We're ready to do som
 
 ### Build and Run the Docker Image
 
+**NOTE: Step 1 below (building the image) is NO LONGER NECESSARY! If you wish to build the image, then by all means, feel free. However, if you're docker-compose.yml file has ```image: jkcoxson/jitstreamer-eb:latest``` then you can skip to Step 2 below. Your Docker image will be automatically pulled and run once it's downloaded!**
+
 1. Build the docker image! This takes a bit to download then compile. Ensure it finishes with no errors. 
 
 Note: you are still in ```~/JitStreamer-EB``` when you run this!
