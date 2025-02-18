@@ -93,7 +93,7 @@ Make the database file
 
 ```touch /mnt/user/appdata/jitstreamer-eb/app/jitstreamer.db```
 
-3. Now you have a fancy little database. But you need to add your device info into it.
+2. Now you have a fancy little database. But you need to add your device info into it.
 Note: There are likely many ways to achieve the desired result here. This is just how I did it. It may be more steps than required, but it lets you see how the database works internally which I prefer for myself.
 Type into the terminal
 ```sqlite3 /mnt/user/appdata/jitstreamer-eb/app/jitstreamer.db```
