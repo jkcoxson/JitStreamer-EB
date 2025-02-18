@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+</head>
+<body>
+    <h2>Please select your paring file</h2>
+    <input type="file" id="fileInput">
+    <button onclick="uploadFile()">Upload</button>
+    <p id="status"></p>
+    <p id="response"></p>
+
+    <script>
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                alert('Please select your paring file.');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            
+            fetch('./register', {
+                method: 'POST',
+                body: file,
+                headers: {
+                    'Content-Type': file.type
+                }
+            })
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('status').innerText = 'Registered IP: ';
+                document.getElementById('response').innerText = data;
+            })
+            .catch(error => {
+                document.getElementById('status').innerText = 'Error: ';
+                document.getElementById('response').innerText = data;
+            });
+        }
+    </script>
+</body>
+</html>
+

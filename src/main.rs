@@ -50,8 +50,7 @@ async fn main() {
     let allow_registration = std::env::var("ALLOW_REGISTRATION")
         .unwrap_or("1".to_string())
         .parse::<u8>()
-        .unwrap()
-        == 1;
+        .unwrap();
     let port = std::env::var("JITSTREAMER_PORT")
         .unwrap_or("9172".to_string())
         .parse::<u16>()
@@ -61,7 +60,7 @@ async fn main() {
     info!("Logger initialized");
 
     // Run the environment checks
-    if allow_registration {
+    if allow_registration == 1 {
         register::check_wireguard();
     }
     if !std::fs::exists("jitstreamer.db").unwrap() {
@@ -103,8 +102,11 @@ async fn main() {
         .route("/status", get(status))
         .with_state(state);
 
-    let app = if allow_registration {
+    let app = if allow_registration == 1 {
         app.route("/register", post(register::register))
+    } else if allow_registration == 2 {
+        app.route("/register", post(register::register))
+            .route("/upload", get(register::upload))
     } else {
         app
     };
@@ -263,7 +265,7 @@ async fn get_apps(
             });
         }
     };
-    let apps: HashMap<String, String> = apps
+    let mut apps: HashMap<String, String> = apps
         .into_iter()
         .filter(|(_, app)| {
             // Filter out apps that don't have get-task-allow
@@ -302,6 +304,8 @@ async fn get_apps(
             error: Some("No apps with get-task-allow found".to_string()),
         });
     }
+
+    apps.insert("Other...".to_string(), "UPDATE YOUR SHORTCUT".to_string());
 
     state
         .new_heartbeat_sender

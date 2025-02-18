@@ -63,7 +63,7 @@ sudo wg-quick up jitstreamer
 JitStreamer reads the following environment variables:
 
 - ``RUNNER_COUNT`` - How many Python runners to spawn, defaults to ``5``
-- ``ALLOW_REGISTRATION`` - Allows clients to register using the ``/register`` endpoint, defaults to ``1``
+- ``ALLOW_REGISTRATION`` - Allows clients to register using the ``/register`` endpoint, defaults to ``1``. Set to 2 to register using client's address instead of generating wireguard address
 - ``JITSTREAMER_PORT`` - The port to bind to, defaults to ``9172``
 - ``WIREGUARD_CONFIG_NAME`` - The name of the Wireguard interface, defaults to ``jitstreamer``
 - ``WIREGUARD_PORT`` - The port that Wireguard listens on, defaults to ``51869``
