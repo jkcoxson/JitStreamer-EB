@@ -28,7 +28,7 @@ Install by following [this tutorial](https://docs.docker.com/engine/install/ubun
 
 ## JITStreamer
 
-Follow the normal step from [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#part-i---preparation), and stop when you reach [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#create-your-database-file)
+Follow the normal step from [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#part-i---preparation), and stop when you reach [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#create-your-database-file)
 
 Here is a modified version of the step for raspberry pi
 
@@ -114,7 +114,7 @@ If you got the above response, then you are done with database creation.
 ## Shortcut
 
 ### Next
-Follow the rest of the tutorial from [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#part-ii---the-execution). We will set up the shortcut after this step.
+Follow the rest of the tutorial from [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#part-ii---the-execution). We will set up the shortcut after this step.
 
 ### Setting Up the Shortcut on Your iDevice
 
