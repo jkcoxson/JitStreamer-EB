@@ -1,7 +1,7 @@
 # How to Self-Host JITStreamer-EB with Tailscale 
-Thank you to [jkcoxson](https://github.com/jkcoxson) for creating this project, [Unlearned6688](https://github.com/Unlearned6688) for creating [jitstreamer-eb-debian-docker-instructions.md](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md) which I will be referencing multiple times through this instructions, and others who had contributed to this project.
+Thank you to [jkcoxson](https://github.com/jkcoxson) for creating this project, [Unlearned6688](https://github.com/Unlearned6688) for creating [jitstreamer-eb-debian-docker-instructions.md](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md) which I will be referencing multiple times through this instructions, and others who had contributed to this project.
 
-You will first need to follow [these instructions](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#prerequisites) until you reach [this section](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#create-your-database-file) (meaning don't do the steps in the second link).
+You will first need to follow [these instructions](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#prerequisites) until you reach [this section](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#create-your-database-file) (meaning don't do the steps in the second link).
 
 ### Installing Tailscale
 First install tailscale **AND ACTIVATE IT** on your iDevice. Watch [this](https://www.youtube.com/watch?v=sPdvyR7bLqI) if you need help. 
@@ -17,7 +17,7 @@ If you are using any other devices go to [this website](https://tailscale.com/do
 Write down the host device's Tailscale IP and iDevice's Tailscale IP. DO NOT MIX THEM UP
 
 ### Create Your Database File
-For this step, I will be heavily referencing and slightly modifying [this section](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#create-your-database-file).
+For this step, I will be heavily referencing and slightly modifying [this section](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#create-your-database-file).
 
 This part might be a bit weird. Prepare yourself.
 
@@ -98,7 +98,7 @@ If you got the above response, then you are done with database creation.
 
 
 ### Next Steps
-Continue following the steps linked [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#part-ii---the-execution) until [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#setting-up-the-shortcut-on-your-idevice).
+Continue following the steps linked [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#part-ii---the-execution) until [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#setting-up-the-shortcut-on-your-idevice).
 
 ### Setting Up Your iDevice
 
@@ -114,6 +114,6 @@ Continue following the steps linked [here](https://github.com/jkcoxson/JitStream
   Obviously the IP would be your own IP.
 * Hit "Done" in the upper-right corner.
 
-Continue on from [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/jitstreamer-eb-debian-docker-instructions.md#oh-yeah-its-all-coming-together-time-to-jit)
+Continue on from [here](https://github.com/jkcoxson/JitStreamer-EB/blob/master/install-docs/jitstreamer-eb-debian-docker-instructions.md#oh-yeah-its-all-coming-together-time-to-jit)
 
 This is not the best guide ever written but feel free to contribute and edit this.
