@@ -1,4 +1,4 @@
-# JitStreamer EB
+# JitStreamer Anger Editon
 
 The sequel that nobody wanted, but everyone needed.
 
@@ -12,10 +12,12 @@ Simply put, this program takes a pairing file and returns a Wireguard configurat
 That Wireguard configuration allows the device to interact with a server that will
 activate JIT on the device.
 
-## EB
+## 
 
-What is EB? Electric Boogaloo.
-[r/outoftheloop](https://www.reddit.com/r/OutOfTheLoop/comments/3o41fi/where_does_the_name_of_something2_electric/)
+Why Anger Editon?
+
+![bild](https://github.com/user-attachments/assets/da6e00e7-22b7-404b-9194-f0f059263699)
+
 
 ## Building
 
